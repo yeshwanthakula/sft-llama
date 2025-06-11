@@ -27,6 +27,7 @@ def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
     
     # Track total tokens
     total_tokens = 0
+    val_tokens = []
     
     # Create shards
     for shard_idx in range(num_shards):
@@ -35,6 +36,7 @@ def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
         
         # Extract tokens for this shard
         shard_tokens = all_tokens[start_idx:end_idx]
+        val_tokens.append(shard_tokens[:-0.05 * len(shard_tokens)])
         
         total_tokens += len(shard_tokens)
         
@@ -45,13 +47,8 @@ def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
         
         print(f"Created shard {shard_idx}: {len(shard_tokens)} tokens")
     
-    # Create a couple of validation shards from leftover data
-    val_examples = examples[:int(len(examples) * 0.05)]  # Use 5% for validation
-    val_tokens = []
-    for example in val_examples:
-        text = f"User: {example['instruction']}\nAssistant: {example['response']}\n\n"
-        tokens = enc.encode(text)
-        val_tokens.extend(tokens)
+
+  
     
     val_path = os.path.join(output_dir, "val_shard_00.npy")
     np.save(val_path, np.array(val_tokens, dtype=np.int32))
@@ -61,4 +58,4 @@ def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
     print(f"Average tokens per shard: {total_tokens / num_shards}")
 
 # Usage
-# create_shards_for_ddp('opencodeinstruct_15m_optimal.txt', 'llama_shards')
+# create_shards_for_ddp('opencodeinstruct_15m_robust.txt', 'llama_shards')
