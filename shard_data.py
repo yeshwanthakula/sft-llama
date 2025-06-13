@@ -36,16 +36,16 @@ def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
         
         # Extract tokens for this shard
         shard_tokens = all_tokens[start_idx:end_idx]
-        val_tokens.append(shard_tokens[:-0.05 * len(shard_tokens)])
-        
-        total_tokens += len(shard_tokens)
+        split_point = int(0.95 * len(shard_tokens))
+        train_tokens = shard_tokens[:split_point]
+        val_tokens.extend(shard_tokens[split_point:]) 
         
         # Save as numpy array
-        shard_array = np.array(shard_tokens, dtype=np.int32)
+        shard_array = np.array(train_tokens, dtype=np.int32)
         shard_path = os.path.join(output_dir, f"train_shard_{shard_idx:02d}.npy")
         np.save(shard_path, shard_array)
         
-        print(f"Created shard {shard_idx}: {len(shard_tokens)} tokens")
+        print(f"Created shard {shard_idx}: {len(train_tokens)} tokens")
     
 
   

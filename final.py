@@ -970,17 +970,17 @@ def ddp_cleanup():
 
 def train_llama(
   cfg=LLAMA32_CONFIG_1B,
-    total_batch_size=524_288,      # 500K tokens (GPT-2 scale)
+    total_batch_size=262_144,      # 500K tokens (GPT-2 scale)
     micro_batch_size=4,         # Higher for cloud hardware
     seq_length=512,               # Optimal for Python functions
-    max_lr=3e-4,                  # Keep GPT-2 value
-    min_lr=3e-5,                  # 10x reduction
+    max_lr=1e-4,                  # Keep GPT-2 value
+    min_lr=1e-5,                  # 10x reduction
     weight_decay=0.01,             # GPT-2 standard
     grad_clip=1.0,                # Standard
     epochs=1,                     # Single pass
     tokens_per_epoch=15_000_000,  # 15M tokens total
     validation_interval=20,      # Less frequent
-    save_interval=10,            # Every 10 steps
+    save_interval=20,            # Every 10 steps
     generate_interval=20,        # Every 5 steps
     use_compile=False,             # Enable on cloud
     use_fsdp=True,                 # Use both GPUs
@@ -1004,7 +1004,7 @@ def train_llama(
     grad_accum_steps = total_batch_size // (micro_batch_size * seq_length * ddp_world_size)
     steps_per_epoch = tokens_per_epoch // total_batch_size
     max_steps = steps_per_epoch * epochs
-    warmup_steps = max(5, int(0.15 * max_steps))  
+    warmup_steps = max(10, int(0.20 * max_steps))  
     
     if master_process:
         logger.info(f"Training config:")
@@ -1165,36 +1165,37 @@ def train_llama(
                         torch.save(checkpoint, checkpoint_path)
             
             # Text generation samples
-            if (step % generate_interval == 0 or last_step) and step > 0:
-                try:
-                    model.eval()
-                    MAX_NEW_TOKENS = 128
-                    TOP_K = 1
+            # if (step % generate_interval == 0 or last_step) and step > 0:
+            #     causing out of sync issues with FSDP
+            #     try:
+            #         model.eval()
+            #         MAX_NEW_TOKENS = 128
+            #         TOP_K = 1
                     
-                    PROMPT = "Write a python function that calculates the factorial of a number."
+            #         PROMPT = "Write a python function that calculates the factorial of a number."
                     
-                    sample_rng = torch.Generator(device=device)
-                    sample_rng.manual_seed(42 + ddp_rank)
+            #         sample_rng = torch.Generator(device=device)
+            #         sample_rng.manual_seed(42 + ddp_rank)
                     
-                    token_ids = generate(
-                                model=model,
-                                idx=text_to_token_ids(PROMPT, enc).to(device),
-                                max_new_tokens=MAX_NEW_TOKENS,
-                                context_size=LLAMA32_CONFIG_1B["context_length"],
-                                top_k=TOP_K,
-                                temperature=0
-                            )
+            #         token_ids = generate(
+            #                     model=model,
+            #                     idx=text_to_token_ids(PROMPT, enc).to(device),
+            #                     max_new_tokens=MAX_NEW_TOKENS,
+            #                     context_size=LLAMA32_CONFIG_1B["context_length"],
+            #                     top_k=TOP_K,
+            #                     temperature=0
+            #                 )
                     
-                    if master_process or not use_fsdp:
-                        generated_text = token_ids_to_text(token_ids, enc)
-                        print("Generated sample:")
-                        print(generated_text)
-                        with open(os.path.join(log_dir, "log.txt"), "a") as f:
-                            f.write(f"{step} generate {generated_text}\n")
+            #         if master_process or not use_fsdp:
+            #             generated_text = token_ids_to_text(token_ids, enc)
+            #             print("Generated sample:")
+            #             print(generated_text)
+            #             with open(os.path.join(log_dir, "log.txt"), "a") as f:
+            #                 f.write(f"{step} generate {generated_text}\n")
                         
-                except Exception as e:
-                    if master_process:
-                        print(f"Error during text generation: {e}")
+            #     except Exception as e:
+            #         if master_process:
+            #             print(f"Error during text generation: {e}")
                 
             # Training step
             model.train()
@@ -1212,7 +1213,7 @@ def train_llama(
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
                     logits, loss = model(x, y)
                 if master_process:
-                    print("Forward pass completed")
+                    print(f"Forward pass completed for micro step {micro_step + 1}/{grad_accum_steps} of step {step}...")
                 
                 # Scale loss for gradient accumulation
                 loss = loss / grad_accum_steps
@@ -1284,6 +1285,16 @@ def train_llama(
             print("Creating training dashboard...")
             metrics_tracker.plot_training_dashboard()
             print("Training completed successfully!")
+        if master_process:
+                checkpoint_path = os.path.join(log_dir, f"model_final_{step:05d}.pt")
+                logger.info(f"Saving checkpoint to {checkpoint_path}")
+                checkpoint = {
+                    'model': raw_model.state_dict(),
+                    'config': raw_model.cfg,
+                    'step': step,
+                    'optimizer': optimizer.state_dict()
+                }
+                torch.save(checkpoint, checkpoint_path)
         
         # Clean up DDP if used
         if use_fsdp:
