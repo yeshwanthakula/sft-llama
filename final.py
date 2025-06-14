@@ -1160,7 +1160,6 @@ def train_llama(
                             'config': raw_model.cfg,
                             'step': step,
                             'val_loss': val_loss_item,
-                            'optimizer': optimizer.state_dict()
                         }
                         torch.save(checkpoint, checkpoint_path)
             
@@ -1292,7 +1291,6 @@ def train_llama(
                     'model': raw_model.state_dict(),
                     'config': raw_model.cfg,
                     'step': step,
-                    'optimizer': optimizer.state_dict()
                 }
                 torch.save(checkpoint, checkpoint_path)
         
