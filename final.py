@@ -979,7 +979,7 @@ def train_llama(
     grad_clip=1.0,                # Standard
     epochs=1,                     # Single pass
     tokens_per_epoch=15_000_000,  # 15M tokens total
-    validation_interval=20,      # Less frequent
+    validation_interval=5,      # Less frequent
     save_interval=20,            # Every 10 steps
     generate_interval=20,        # Every 5 steps
     use_compile=False,             # Enable on cloud
