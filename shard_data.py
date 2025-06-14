@@ -58,4 +58,4 @@ def create_shards_for_ddp(input, output_dir, num_shards=8):
     print(f"Average tokens per shard: {total_tokens / num_shards}")
 
 # Usage
-# create_shards_for_ddp('opencodeinstruct_15m_robust.txt', 'llama_shards')
+create_shards_for_ddp('opencodeinstruct_15m_robust.txt', 'llama_shards')
