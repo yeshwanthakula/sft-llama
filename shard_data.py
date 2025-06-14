@@ -4,7 +4,7 @@ import math
 import numpy as np
 from tokenizer import Llama3Tokenizer
 
-def create_shards_for_ddp(input, output_dir, python_examples,num_shards=8):
+def create_shards_for_ddp(input, output_dir, num_shards=8):
     """
     Create tokenized shards for distributed training.
     Using 8 shards (4 per GPU) gives flexibility during training.

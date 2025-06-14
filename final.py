@@ -926,7 +926,7 @@ def get_lr(it, max_lr, min_lr, warmup_steps, max_steps):
 def fsdp_setup(use_fsdp=False):
     """Set up distributed training if enabled."""
     if not use_fsdp:
-        return 0, 0, 1, True, "cpu"
+        return 0, 0, 1, True, "cuda"
     
     assert torch.cuda.is_available(), "FSDP requires CUDA"
     
@@ -971,7 +971,7 @@ def ddp_cleanup():
 def train_llama(
   cfg=LLAMA32_CONFIG_1B,
     total_batch_size=262_144,      # 500K tokens (GPT-2 scale)
-    micro_batch_size=4,         # Higher for cloud hardware
+    micro_batch_size=16,         # Higher for cloud hardware
     seq_length=512,               # Optimal for Python functions
     max_lr=1e-4,                  # Keep GPT-2 value
     min_lr=1e-5,                  # 10x reduction
@@ -983,7 +983,7 @@ def train_llama(
     save_interval=20,            # Every 10 steps
     generate_interval=20,        # Every 5 steps
     use_compile=False,             # Enable on cloud
-    use_fsdp=True,                 # Use both GPUs
+    use_fsdp=False,                 # Use both GPUs
     log_dir="sft_log"
 ):
     """Train a Llama model with comprehensive metrics tracking."""
@@ -1041,10 +1041,10 @@ def train_llama(
 
     # Load the base model
     model = Llama32Model(cfg)
-    # if master_process:
-    #     print("Loading weights...")
-    # MODEL_FILE = "llama3.2-1B-base.pth"
-    # model.load_state_dict(torch.load(MODEL_FILE, weights_only=True ,map_location = 'cpu'))
+    if master_process:
+        print("Loading weights...")
+    MODEL_FILE = "llama3.2-1B-base.pth"
+    model.load_state_dict(torch.load(MODEL_FILE, weights_only=True ,map_location = 'cpu'))
     if master_process:
         print("Loaded the base model weights")
         
@@ -1062,10 +1062,10 @@ def train_llama(
         print(f"Max memory allocated: {max_mem_gb:.2f} GB")
     
     # Apply torch.compile if specified
-    use_compile=False
-    # print(f"Using torch.compile: {use_compile}")
-    # if use_compile:
-    #     model = torch.compile(model)
+    use_compile=True
+    print(f"Using torch.compile: {use_compile}")
+    if use_compile:
+        model = torch.compile(model)
     
     # Wrap model in DDP if using DDP
     # print(f"Using DDP: {use_fsdp}, local rank: {ddp_local_rank}")
@@ -1075,11 +1075,11 @@ def train_llama(
         cpu_offload = CPUOffload(offload_params=True)
         model = FSDP(model, auto_wrap_policy=auto_wrap_policy, sharding_strategy=ShardingStrategy.FULL_SHARD, device_id=ddp_local_rank,cpu_offload=cpu_offload)
         dist.barrier()
-    MODEL_FILE = "llama3.2-1B-base.pth"
-    model.load_state_dict(torch.load(MODEL_FILE, weights_only=True ,map_location="cpu"))
-    if master_process:
-        print("Loaded the base model weights into FSDP model")
-        logger.info(f"Base model weights loaded sucessfully")
+    # MODEL_FILE = "llama3.2-1B-base.pth"
+    # model.load_state_dict(torch.load(MODEL_FILE, weights_only=True ,map_location="cpu"))
+    # if master_process:
+    #     print("Loaded the base model weights into FSDP model")
+    #     logger.info(f"Base model weights loaded sucessfully")
     raw_model = model.module if use_fsdp else model
 
     
